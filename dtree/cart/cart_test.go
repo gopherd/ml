@@ -1,11 +1,11 @@
-package c45_test
+package cart_test
 
 import (
 	"testing"
 
 	"github.com/gopherd/brain/dataloader"
 	"github.com/gopherd/brain/dtree"
-	"github.com/gopherd/brain/dtree/c45"
+	"github.com/gopherd/brain/dtree/cart"
 )
 
 func TestGenerateTree(t *testing.T) {
@@ -14,6 +14,6 @@ func TestGenerateTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load test data error: %v", err)
 	}
-	var root = dtree.Generate(samples, c45.Policy[T])
+	var root = dtree.Generate(samples, cart.Policy[T])
 	t.Log(dtree.Stringify(root, nil))
 }

@@ -14,12 +14,20 @@ func Policy[T constraints.Float](samples []stat.Sample[T], attrs []int) int {
 	var bestGain float64
 	var bestAttr = -1
 	var total = float64(len(samples))
+	var ent = stat.SumEntropySet(samples)
 	for i, attr := range attrs {
-		var sum float64
+		var sum = ent
+		var iv float64
 		for _, s := range stat.Group(samples, attr) {
-			sum += float64(len(s)) / total * stat.EntropySet(s)
+			sum -= float64(len(s)) / total * stat.SumEntropySet(s)
+			var p = float64(len(s)) / total
+			iv += stat.Entropy(p)
 		}
-		if i == 0 || sum < bestGain {
+		if iv < stat.Epsilon {
+			return i
+		}
+		sum /= iv
+		if i == 0 || sum > bestGain {
 			bestGain = sum
 			bestAttr = i
 		}

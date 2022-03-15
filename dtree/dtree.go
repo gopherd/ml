@@ -6,6 +6,7 @@ import (
 	"github.com/gopherd/brain/stat"
 	"github.com/gopherd/doge/constraints"
 	"github.com/gopherd/doge/container/maps"
+	"github.com/gopherd/doge/container/ordered"
 	"github.com/gopherd/doge/container/stringify"
 	"github.com/gopherd/doge/math/tensor"
 )
@@ -15,9 +16,9 @@ type Node[T any] struct {
 	parent   *Node[T]
 	children []*Node[T]
 
-	Attribute int // attribute for spliting children, valid iff len(children) > 0
-	Value     T   // value of attribute
-	Class     int // class of sample
+	AttributeType  int // attribute for spliting children, valid iff len(children) > 0
+	AttributeValue T   // value of attribute
+	Class          int // class of sample
 }
 
 // String implements container.Node String method
@@ -25,7 +26,7 @@ func (node *Node[T]) String() string {
 	if node.parent == nil {
 		return "."
 	}
-	return fmt.Sprintf("%d=>%v:(%d)", node.Attribute, node.Value, node.Class)
+	return fmt.Sprintf("attr(%d)=%v:(%d)", node.AttributeType, node.AttributeValue, node.Class)
 }
 
 // SetParent sets parent node
@@ -40,6 +41,7 @@ func (node *Node[T]) Parent() *Node[T] {
 
 // AddChild append a child node
 func (node *Node[T]) AddChild(child *Node[T]) {
+	child.parent = node
 	node.children = append(node.children, child)
 }
 
@@ -61,8 +63,8 @@ func Stringify[T any](tree *Node[T], options *stringify.Options) string {
 // PolicyFunc used to lookup best attribute for spliting
 type PolicyFunc[T constraints.Float] func(trainSamples []stat.Sample[T], attrs []int) int
 
-// GenerateTree generates a decision tree
-func GenerateTree[T constraints.Float](
+// Generate generates a decision tree
+func Generate[T constraints.Float](
 	trainSamples []stat.Sample[T],
 	policy PolicyFunc[T],
 ) *Node[T] {
@@ -72,11 +74,12 @@ func GenerateTree[T constraints.Float](
 	}
 	var n = len(trainSamples[0].Attributes)
 	var attrs = tensor.RangeN(n)
-	var attrValues = make([]map[T]int, len(attrs))
+	var attrValues = make([]*ordered.Map[T, int], len(attrs))
 	for i := 0; i < n; i++ {
-		attrValues[i] = make(map[T]int)
+		attrValues[i] = ordered.NewMap[T, int]()
 		for _, x := range trainSamples {
-			attrValues[i][x.Attributes[i]]++
+			var k = x.Attributes[i]
+			attrValues[i].Insert(k, attrValues[i].Get(k)+1)
 		}
 	}
 	generateChildren(root, trainSamples, attrValues, attrs, policy)
@@ -86,8 +89,8 @@ func GenerateTree[T constraints.Float](
 func generateChildren[T constraints.Float](
 	parent *Node[T],
 	samples []stat.Sample[T],
-	attrValues []map[T]int,
-	attrs []int,
+	attributeValues []*ordered.Map[T, int],
+	attributeTypes []int,
 	policy PolicyFunc[T],
 ) {
 	// are all classes same?
@@ -105,7 +108,7 @@ func generateChildren[T constraints.Float](
 
 	// are all values same on attrs?
 	allSame = true
-	for _, attr := range attrs {
+	for _, attr := range attributeTypes {
 		var sameAttr = true
 		for j := range samples {
 			if j > 0 && samples[j].Attributes[attr] != samples[j-1].Attributes[attr] {
@@ -118,30 +121,39 @@ func generateChildren[T constraints.Float](
 			break
 		}
 	}
-	if len(attrs) == 0 || allSame {
+	if len(attributeTypes) == 0 || allSame {
 		parent.Class = maps.MaxValue(stat.Counters(samples)).First
 		return
 	}
 
 	// lookup best attribute for splitting
-	var best = policy(samples, attrs)
-	var bestAttr = attrs[best]
-	var last = len(attrs) - 1
+	var best = policy(samples, attributeTypes)
+	var bestAttr = attributeTypes[best]
+	var last = len(attributeTypes) - 1
 	if best != last {
-		attrs[best] = attrs[last]
+		attributeTypes[best] = attributeTypes[last]
 	}
-	attrs = attrs[:last]
+	attributeTypes = attributeTypes[:last]
 	var groups = stat.Group(samples, bestAttr)
-	for k := range attrValues[bestAttr] {
+	var iter = attributeValues[bestAttr].First()
+	for iter != nil {
+		var attrValue = iter.Key()
+		iter = iter.Next()
 		var node = new(Node[T])
-		node.Attribute = bestAttr
-		node.Value = k
-		node.SetParent(parent)
+		node.AttributeType = bestAttr
+		node.AttributeValue = attrValue
 		parent.AddChild(node)
-		if s, ok := groups[k]; ok {
-			generateChildren(node, s, attrValues, attrs, policy)
+		if s, ok := groups[attrValue]; ok {
+			generateChildren(node, s, attributeValues, attributeTypes, policy)
 		} else {
 			node.Class = maps.MaxValue(stat.Counters(samples)).First
 		}
 	}
+}
+
+// TODO: PostPruning post-pruning decision tree
+func PostPruning[
+	S ~[]stat.Sample[T],
+	T constraints.Float,
+](root *Node[T], testSamples S) {
 }

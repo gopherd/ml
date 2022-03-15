@@ -5,6 +5,7 @@ import (
 
 	"github.com/gopherd/doge/constraints"
 	"github.com/gopherd/doge/container/maps"
+	"github.com/gopherd/doge/container/slices"
 	"github.com/gopherd/doge/math/tensor"
 )
 
@@ -27,20 +28,21 @@ func Counters[S ~[]Sample[T], T constraints.SignedReal](samples S) map[int]int {
 	return counters
 }
 
-// Entropy computes information entropy by probablities
-func Entropy[S ~[]T, T constraints.Float](probs S) T {
-	var sum float64
-	for _, p := range probs {
-		if p < Epsilon {
-			continue
-		}
-		sum -= float64(p) * math.Log2(float64(p))
+// Entropy computes information entropy for p
+func Entropy[T constraints.Float](p T) float64 {
+	if p < Epsilon {
+		return 0
 	}
-	return T(sum)
+	return -float64(p) * math.Log2(float64(p))
 }
 
-// EntropySet computes information entropy of set
-func EntropySet[S ~[]Sample[T], T constraints.SignedReal](samples S) float64 {
+// SumEntropy computes information entropy by probablities
+func SumEntropy[S ~[]T, T constraints.Float](probs S) float64 {
+	return slices.SumFunc[S, func(T) float64, T, float64](probs, Entropy[T])
+}
+
+// SumEntropySet computes information entropy of set
+func SumEntropySet[S ~[]Sample[T], T constraints.SignedReal](samples S) float64 {
 	var counters = make(map[int]float64)
 	if len(samples) == 0 {
 		return 0
@@ -53,7 +55,7 @@ func EntropySet[S ~[]Sample[T], T constraints.SignedReal](samples S) float64 {
 	for i := range probs {
 		probs[i] /= total
 	}
-	return Entropy(probs)
+	return SumEntropy(probs)
 }
 
 // Group groups samples by attribute
@@ -64,4 +66,15 @@ func Group[S ~[]Sample[T], T constraints.Float](samples S, attribute int) map[T]
 		m[attr] = append(m[attr], x)
 	}
 	return m
+}
+
+func square64[T constraints.Float](x T) float64 {
+	return float64(x) * float64(x)
+}
+
+// Gini computes gini index by probablities
+//
+//	g = 1 - Σk(pk^2)
+func Gini[S ~[]T, T constraints.Float](probs S) float64 {
+	return 1 - slices.SumFunc[S, func(T) float64, T, float64](probs, square64[T])
 }
