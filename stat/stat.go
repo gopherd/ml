@@ -15,8 +15,8 @@ type Sample[T constraints.SignedReal] struct {
 	Class      int
 }
 
-// CounterSamples counters number of each class
-func CounterSamples[S ~[]Sample[T], T constraints.SignedReal](samples S) map[int]int {
+// Counters counters number of each class
+func Counters[S ~[]Sample[T], T constraints.SignedReal](samples S) map[int]int {
 	if len(samples) == 0 {
 		return nil
 	}

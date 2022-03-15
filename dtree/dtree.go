@@ -119,7 +119,7 @@ func generateChildren[T constraints.Float](
 		}
 	}
 	if len(attrs) == 0 || allSame {
-		parent.Class = maps.MaxValue(stat.CounterSamples(samples)).First
+		parent.Class = maps.MaxValue(stat.Counters(samples)).First
 		return
 	}
 
@@ -141,7 +141,7 @@ func generateChildren[T constraints.Float](
 		if s, ok := groups[k]; ok {
 			generateChildren(node, s, attrValues, attrs, policy)
 		} else {
-			node.Class = maps.MaxValue(stat.CounterSamples(samples)).First
+			node.Class = maps.MaxValue(stat.Counters(samples)).First
 		}
 	}
 }
