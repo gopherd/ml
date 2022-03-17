@@ -14,7 +14,7 @@ func TestGenerateTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load test data error: %v", err)
 	}
-	var root = dtree.GenerateTree(samples, func(trainSamples []stat.Sample[T], attrs []int) int {
+	var root = dtree.Generate(samples, func(trainSamples []stat.Sample[T], attrs []int) int {
 		return len(attrs) - 1
 	})
 	t.Log(dtree.Stringify(root, nil))
