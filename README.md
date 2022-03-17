@@ -45,6 +45,9 @@ $$
 
 $$
 \tag{6}
-\max_{\pmb\alpha}\sum_{i=1}^m{\alpha_i} - \frac{1}{2}\sum_{i=1}^m\sum_{j=1}^m{\alpha_i\alpha_jy_iy_j\pmb{x}_i^T\pmb{x}_j}, \newline
+\max_{\pmb\alpha}\sum_{i=1}^m{\alpha_i} - \frac{1}{2}\sum_{i=1}^m\sum_{j=1}^m{\alpha_i\alpha_jy_iy_j\pmb{x}_i^T\pmb{x}_j}
+$$
+
+$$
 st. \sum_{i=1}^m\alpha_iy_i = 0, \space \alpha_i \geqslant 0 \space \forall i \in \lbrace1,...,m\rbrace
 $$
