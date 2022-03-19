@@ -10,13 +10,13 @@ import (
 )
 
 func Policy[T constraints.Float](samples []stat.Sample[T], attrs []int) int {
-	var bestGini float64
+	var bestGini T
 	var bestAttr = -1
-	var total = float64(len(samples))
+	var total = T(len(samples))
 	for i, attr := range attrs {
-		var gini = 1.0
+		var gini T = 1
 		for _, s := range stat.Group(samples, attr) {
-			var p = float64(len(s)) / total
+			var p = T(len(s)) / total
 			gini -= p * p
 		}
 		if i == 0 || gini < bestGini {

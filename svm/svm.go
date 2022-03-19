@@ -5,11 +5,15 @@ import (
 	"github.com/gopherd/doge/math/tensor"
 )
 
-type Kernel[T constraints.SignedReal] func(tensor.Vector[T], tensor.Vector[T]) T
+type Kernel[T constraints.Float] func(tensor.Vector[T], tensor.Vector[T]) T
 
-func sign[T constraints.SignedReal](x T) T {
+func sign[T constraints.Float](x T) T {
 	if x < 0 {
 		return -1
 	}
 	return 1
+}
+
+func dotv[T constraints.Float](a, b tensor.Vector[T]) T {
+	return a.Dot(b)
 }

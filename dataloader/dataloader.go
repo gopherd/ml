@@ -109,10 +109,11 @@ func LoadCSV[T constraints.Float](r io.Reader, options ...CSVOption) ([]stat.Sam
 		for j, s := range record {
 			if len(sample.Attributes) == opt.columns {
 				if !opt.nolabel {
-					sample.Class, err = strconv.Atoi(s)
+					label, err := strconv.ParseFloat(s, bits)
 					if err != nil {
 						return nil, err
 					}
+					sample.Label = T(label)
 				}
 				break
 			}

@@ -7,7 +7,8 @@ import (
 	"github.com/gopherd/doge/constraints"
 	"github.com/gopherd/doge/container/maps"
 	"github.com/gopherd/doge/container/ordered"
-	"github.com/gopherd/doge/container/stringify"
+	"github.com/gopherd/doge/container/slices"
+	"github.com/gopherd/doge/container/tree"
 	"github.com/gopherd/doge/math/tensor"
 )
 
@@ -18,7 +19,7 @@ type Node[T any] struct {
 
 	AttributeType  int // attribute for spliting children, valid iff len(children) > 0
 	AttributeValue T   // value of attribute
-	Class          int // class of sample
+	Label          T   // class of sample
 }
 
 // String implements container.Node String method
@@ -26,7 +27,7 @@ func (node *Node[T]) String() string {
 	if node.parent == nil {
 		return "."
 	}
-	return fmt.Sprintf("attr(%d)=%v:(%d)", node.AttributeType, node.AttributeValue, node.Class)
+	return fmt.Sprintf("attr(%d)=%v:(%v)", node.AttributeType, node.AttributeValue, node.Label)
 }
 
 // SetParent sets parent node
@@ -55,54 +56,72 @@ func (node *Node[T]) GetChildByIndex(i int) *Node[T] {
 	return node.children[i]
 }
 
-// Stringify format the tree to string
-func Stringify[T any](tree *Node[T], options *stringify.Options) string {
-	return stringify.Stringify[*Node[T]](tree, options)
+// PolicyFunc used to lookup best attribute for spliting
+type PolicyFunc[T constraints.Float] func(samples []stat.Sample[T], attrs []int) int
+
+// PruningType represents type of pruning tree
+type PruningType int
+
+const (
+	NoPruning PruningType = iota
+	PrePruning
+	PostPruning
+)
+
+// Model implements brain.Model
+type Model[T constraints.Float] struct {
+	policy      PolicyFunc[T]
+	pruningType PruningType
+	root        *Node[T]
 }
 
-// PolicyFunc used to lookup best attribute for spliting
-type PolicyFunc[T constraints.Float] func(trainSamples []stat.Sample[T], attrs []int) int
-
-// Generate generates a decision tree
-func Generate[T constraints.Float](
-	trainSamples []stat.Sample[T],
-	policy PolicyFunc[T],
-) *Node[T] {
-	var root = new(Node[T])
-	if len(trainSamples) == 0 {
-		return root
+func NewModel[T constraints.Float](policy PolicyFunc[T], pruningType PruningType) *Model[T] {
+	return &Model[T]{
+		policy:      policy,
+		pruningType: pruningType,
 	}
-	var n = len(trainSamples[0].Attributes)
+}
+
+// Stringify format the tree to string
+func (m *Model[T]) Stringify(options *tree.Options) string {
+	return tree.Stringify[*Node[T]](m.root, options)
+}
+
+// Train trains the decision tree
+func (m *Model[T]) Train(samples []stat.Sample[T]) {
+	m.root = new(Node[T])
+	if len(samples) == 0 {
+		return
+	}
+	var n = len(samples[0].Attributes)
 	var attrs = tensor.RangeN(n)
 	var attrValues = make([]*ordered.Map[T, int], len(attrs))
 	for i := 0; i < n; i++ {
 		attrValues[i] = ordered.NewMap[T, int]()
-		for _, x := range trainSamples {
+		for _, x := range samples {
 			var k = x.Attributes[i]
 			attrValues[i].Insert(k, attrValues[i].Get(k)+1)
 		}
 	}
-	generateChildren(root, trainSamples, attrValues, attrs, policy)
-	return root
+	m.generateChildren(m.root, samples, attrValues, attrs)
 }
 
-func generateChildren[T constraints.Float](
+func (m *Model[T]) generateChildren(
 	parent *Node[T],
 	samples []stat.Sample[T],
 	attributeValues []*ordered.Map[T, int],
 	attributeTypes []int,
-	policy PolicyFunc[T],
 ) {
 	// are all classes same?
 	var allSame = true
 	for i := range samples {
-		if i > 0 && samples[i].Class != samples[i-1].Class {
+		if i > 0 && samples[i].Label != samples[i-1].Label {
 			allSame = false
 			break
 		}
 	}
 	if allSame {
-		parent.Class = samples[0].Class
+		parent.Label = samples[0].Label
 		return
 	}
 
@@ -122,12 +141,12 @@ func generateChildren[T constraints.Float](
 		}
 	}
 	if len(attributeTypes) == 0 || allSame {
-		parent.Class = maps.MaxValue(stat.Counters(samples)).First
+		parent.Label = maps.MaxValue(stat.Counters(samples)).First
 		return
 	}
 
 	// lookup best attribute for splitting
-	var best = policy(samples, attributeTypes)
+	var best = m.policy(samples, attributeTypes)
 	var bestAttr = attributeTypes[best]
 	var last = len(attributeTypes) - 1
 	if best != last {
@@ -144,16 +163,40 @@ func generateChildren[T constraints.Float](
 		node.AttributeValue = attrValue
 		parent.AddChild(node)
 		if s, ok := groups[attrValue]; ok {
-			generateChildren(node, s, attributeValues, attributeTypes, policy)
+			m.generateChildren(node, s, attributeValues, attributeTypes)
 		} else {
-			node.Class = maps.MaxValue(stat.Counters(samples)).First
+			node.Label = maps.MaxValue(stat.Counters(samples)).First
 		}
 	}
 }
 
-// TODO: PostPruning post-pruning decision tree
-func PostPruning[
-	S ~[]stat.Sample[T],
-	T constraints.Float,
-](root *Node[T], testSamples S) {
+// postPruning post-pruning decision tree
+func (m *Model[T]) postPruning(root *Node[T], samples []stat.Sample[T]) {
+	panic("TODO")
+}
+
+// Predict predicts label for sample
+func (m *Model[T]) Predict(x tensor.Vector[T]) T {
+	return m.predict(m.root, x)
+}
+
+func (m *Model[T]) predict(node *Node[T], x tensor.Vector[T]) T {
+	for _, child := range node.children {
+		if x[child.AttributeType] == child.AttributeValue {
+			return m.predict(child, x)
+		}
+	}
+	return node.Label
+}
+
+// RF warpps policy for random forest
+func RF[T constraints.Float](policy PolicyFunc[T]) PolicyFunc[T] {
+	return func(samples []stat.Sample[T], attrs []int) int {
+		var n = stat.Log2(uint(len(attrs)))
+		if n < 1 {
+			n = 1
+		}
+		slices.ShuffleN(attrs, n)
+		return policy(samples, attrs[:n])
+	}
 }

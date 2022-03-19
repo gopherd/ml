@@ -3,17 +3,13 @@ package cart_test
 import (
 	"testing"
 
-	"github.com/gopherd/brain/dataloader"
 	"github.com/gopherd/brain/dtree"
 	"github.com/gopherd/brain/dtree/cart"
 )
 
-func TestGenerateTree(t *testing.T) {
+func TestModel(t *testing.T) {
 	type T = float32
-	samples, err := dataloader.LoadCSVFile[T]("../../testdata/watermelon/v2/data.csv")
-	if err != nil {
-		t.Fatalf("load test data error: %v", err)
-	}
-	var root = dtree.Generate(samples, cart.Policy[T])
-	t.Log(dtree.Stringify(root, nil))
+	var model = dtree.NewModel(cart.Policy[T], dtree.NoPruning)
+	dtree.TestModel("../../testdata/watermelon/v2/data.csv", model, t)
+	t.Log(model.Stringify(nil))
 }
