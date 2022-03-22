@@ -3,7 +3,7 @@ package dtree
 import (
 	"fmt"
 
-	"github.com/gopherd/brain/stat"
+	"github.com/gopherd/brain/model"
 	"github.com/gopherd/doge/constraints"
 	"github.com/gopherd/doge/container/maps"
 	"github.com/gopherd/doge/container/ordered"
@@ -57,7 +57,7 @@ func (node *Node[T]) GetChildByIndex(i int) *Node[T] {
 }
 
 // PolicyFunc used to lookup best attribute for spliting
-type PolicyFunc[T constraints.Float] func(samples []stat.Sample[T], attrs []int) int
+type PolicyFunc[T constraints.Float] func(samples []model.Sample[T], attrs []int) int
 
 // PruningType represents type of pruning tree
 type PruningType int
@@ -88,7 +88,7 @@ func (m *Model[T]) Stringify(options *tree.Options) string {
 }
 
 // Train trains the decision tree
-func (m *Model[T]) Train(samples []stat.Sample[T]) {
+func (m *Model[T]) Train(samples []model.Sample[T]) {
 	m.root = new(Node[T])
 	if len(samples) == 0 {
 		return
@@ -108,7 +108,7 @@ func (m *Model[T]) Train(samples []stat.Sample[T]) {
 
 func (m *Model[T]) generateChildren(
 	parent *Node[T],
-	samples []stat.Sample[T],
+	samples []model.Sample[T],
 	attributeValues []*ordered.Map[T, int],
 	attributeTypes []int,
 ) {
@@ -141,7 +141,7 @@ func (m *Model[T]) generateChildren(
 		}
 	}
 	if len(attributeTypes) == 0 || allSame {
-		parent.Label = maps.MaxValue(stat.Counters(samples)).First
+		parent.Label = maps.MaxValue(model.Counters(samples)).First
 		return
 	}
 
@@ -153,7 +153,7 @@ func (m *Model[T]) generateChildren(
 		attributeTypes[best] = attributeTypes[last]
 	}
 	attributeTypes = attributeTypes[:last]
-	var groups = stat.Group(samples, bestAttr)
+	var groups = model.Group(samples, bestAttr)
 	var iter = attributeValues[bestAttr].First()
 	for iter != nil {
 		var attrValue = iter.Key()
@@ -165,13 +165,13 @@ func (m *Model[T]) generateChildren(
 		if s, ok := groups[attrValue]; ok {
 			m.generateChildren(node, s, attributeValues, attributeTypes)
 		} else {
-			node.Label = maps.MaxValue(stat.Counters(samples)).First
+			node.Label = maps.MaxValue(model.Counters(samples)).First
 		}
 	}
 }
 
 // postPruning post-pruning decision tree
-func (m *Model[T]) postPruning(root *Node[T], samples []stat.Sample[T]) {
+func (m *Model[T]) postPruning(root *Node[T], samples []model.Sample[T]) {
 	panic("TODO")
 }
 
@@ -189,10 +189,10 @@ func (m *Model[T]) predict(node *Node[T], x tensor.Vector[T]) T {
 	return node.Label
 }
 
-// RF warpps policy for random forest
+// RF wraps policy for random forest
 func RF[T constraints.Float](policy PolicyFunc[T]) PolicyFunc[T] {
-	return func(samples []stat.Sample[T], attrs []int) int {
-		var n = stat.Log2(uint(len(attrs)))
+	return func(samples []model.Sample[T], attrs []int) int {
+		var n = model.Log2(uint(len(attrs)))
 		if n < 1 {
 			n = 1
 		}

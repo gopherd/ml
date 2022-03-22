@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/gopherd/brain/stat"
+	"github.com/gopherd/brain/model"
 	"github.com/gopherd/doge/constraints"
 	"github.com/gopherd/doge/math/mathutil"
 	"github.com/gopherd/doge/math/tensor"
@@ -68,7 +68,7 @@ func WithCSVNoLabel(nolabel bool) CSVOption {
 	}
 }
 
-func LoadCSVFile[T constraints.Float](filename string, options ...CSVOption) ([]stat.Sample[T], error) {
+func LoadCSVFile[T constraints.Float](filename string, options ...CSVOption) ([]model.Sample[T], error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -77,7 +77,7 @@ func LoadCSVFile[T constraints.Float](filename string, options ...CSVOption) ([]
 	return LoadCSV[T](file, options...)
 }
 
-func LoadCSV[T constraints.Float](r io.Reader, options ...CSVOption) ([]stat.Sample[T], error) {
+func LoadCSV[T constraints.Float](r io.Reader, options ...CSVOption) ([]model.Sample[T], error) {
 	opt := defaultCSVOptions()
 	opt.apply(options)
 
@@ -90,7 +90,7 @@ func LoadCSV[T constraints.Float](r io.Reader, options ...CSVOption) ([]stat.Sam
 		return nil, nil
 	}
 	var bits = int(unsafe.Sizeof(T(0))) * 8
-	var samples = make([]stat.Sample[T], 0, operator.If(opt.rows > 0, opt.rows, len(records)))
+	var samples = make([]model.Sample[T], 0, operator.If(opt.rows > 0, opt.rows, len(records)))
 	for i, record := range records {
 		if opt.columns < 1 {
 			opt.columns = len(record) - mathutil.Predict[int](!opt.nolabel)
@@ -104,7 +104,7 @@ func LoadCSV[T constraints.Float](r io.Reader, options ...CSVOption) ([]stat.Sam
 		if opt.trimRowHeader && i == 0 {
 			continue
 		}
-		var sample stat.Sample[T]
+		var sample model.Sample[T]
 		sample.Attributes = make(tensor.Vector[T], 0, opt.columns)
 		for j, s := range record {
 			if len(sample.Attributes) == opt.columns {
@@ -141,7 +141,7 @@ func LoadCSV[T constraints.Float](r io.Reader, options ...CSVOption) ([]stat.Sam
 		samples = append(samples, sample)
 	}
 	for len(samples) < opt.rows {
-		samples = append(samples, stat.Sample[T]{
+		samples = append(samples, model.Sample[T]{
 			Attributes: make(tensor.Vector[T], opt.columns),
 		})
 	}

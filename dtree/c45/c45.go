@@ -6,24 +6,24 @@
 package c45
 
 import (
-	"github.com/gopherd/brain/stat"
+	"github.com/gopherd/brain/model"
 	"github.com/gopherd/doge/constraints"
 )
 
-func Policy[T constraints.Float](samples []stat.Sample[T], attrs []int) int {
+func Policy[T constraints.Float](samples []model.Sample[T], attrs []int) int {
 	var bestGain T
 	var bestAttr = -1
 	var total = T(len(samples))
-	var ent = stat.SumEntropySet(samples)
+	var ent = model.SumEntropySet(samples)
 	for i, attr := range attrs {
 		var sum = ent
 		var iv T
-		for _, s := range stat.Group(samples, attr) {
-			sum -= T(len(s)) / total * stat.SumEntropySet(s)
+		for _, s := range model.Group(samples, attr) {
+			sum -= T(len(s)) / total * model.SumEntropySet(s)
 			var p = T(len(s)) / total
-			iv += stat.Entropy(p)
+			iv += model.Entropy(p)
 		}
-		if iv < stat.Epsilon {
+		if iv < model.Epsilon {
 			return i
 		}
 		sum /= iv

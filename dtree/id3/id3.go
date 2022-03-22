@@ -6,18 +6,18 @@
 package id3
 
 import (
-	"github.com/gopherd/brain/stat"
+	"github.com/gopherd/brain/model"
 	"github.com/gopherd/doge/constraints"
 )
 
-func Policy[T constraints.Float](samples []stat.Sample[T], attrs []int) int {
+func Policy[T constraints.Float](samples []model.Sample[T], attrs []int) int {
 	var bestGain T
 	var bestAttr = -1
 	var total = T(len(samples))
 	for i, attr := range attrs {
 		var sum T
-		for _, s := range stat.Group(samples, attr) {
-			sum += T(len(s)) / total * stat.SumEntropySet(s)
+		for _, s := range model.Group(samples, attr) {
+			sum += T(len(s)) / total * model.SumEntropySet(s)
 		}
 		if i == 0 || sum < bestGain {
 			bestGain = sum
