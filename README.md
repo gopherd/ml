@@ -2,6 +2,7 @@ brain: 机器学习算法
 =================
 
 > 如需查看公式，需要在 chrome 浏览器上安装插件支持:
+>
 > [https://chrome.google.com/webstore/detail/tex-all-the-things/cbimabofgmfdkicghcadidpemeenbffn/related](https://chrome.google.com/webstore/detail/tex-all-the-things/cbimabofgmfdkicghcadidpemeenbffn/related)
 
 ## 1. 决策树（Decision tree）
