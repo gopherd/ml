@@ -3,7 +3,7 @@ package dtree
 import (
 	"fmt"
 
-	"github.com/gopherd/brain/model"
+	"github.com/gopherd/ml/model"
 	"github.com/gopherd/doge/constraints"
 	"github.com/gopherd/doge/container/maps"
 	"github.com/gopherd/doge/container/ordered"

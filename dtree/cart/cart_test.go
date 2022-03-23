@@ -3,8 +3,8 @@ package cart_test
 import (
 	"testing"
 
-	"github.com/gopherd/brain/dtree"
-	"github.com/gopherd/brain/dtree/cart"
+	"github.com/gopherd/ml/dtree"
+	"github.com/gopherd/ml/dtree/cart"
 )
 
 func TestModel(t *testing.T) {

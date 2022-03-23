@@ -3,15 +3,20 @@ package kmean
 import (
 	"math"
 
-	"github.com/gopherd/brain/model"
 	"github.com/gopherd/doge/constraints"
 	"github.com/gopherd/doge/container/pair"
 	"github.com/gopherd/doge/container/slices"
 	"github.com/gopherd/doge/math/mathutil"
 	"github.com/gopherd/doge/math/tensor"
+	"github.com/gopherd/ml/model"
 )
 
-func Clustering[T constraints.Float](samples []model.Sample[T], k int) []tensor.Vector[T] {
+type Options[T constraints.Float] struct {
+	MaxIterations int
+	StopError     T
+}
+
+func Clustering[T constraints.Float](samples []model.Sample[T], k int, options *Options[T]) []tensor.Vector[T] {
 	if len(samples) <= k {
 		var means = make([]tensor.Vector[T], len(samples))
 		for i := range samples {
@@ -20,8 +25,17 @@ func Clustering[T constraints.Float](samples []model.Sample[T], k int) []tensor.
 		}
 		return means
 	}
+	if options == nil {
+		options = &Options[T]{}
+	}
+	if options.StopError == 0 {
+		options.StopError = model.Epsilon
+	}
 	var means = slices.Map(slices.ShuffleN(tensor.RangeN(len(samples)), k)[:k], func(i int) tensor.Vector[T] {
 		return samples[i].Attributes
+	})
+	var newMeans = slices.Map(make([]tensor.Vector[T], len(means)), func(_ tensor.Vector[T]) tensor.Vector[T] {
+		return make(tensor.Vector[T], len(samples[0].Attributes))
 	})
 	var count = tensor.Repeat(0, k)
 	for i := range samples {
@@ -54,26 +68,46 @@ func Clustering[T constraints.Float](samples []model.Sample[T], k int) []tensor.
 			break
 		}
 		slices.CopyFunc(count, count, mathutil.Zero[int])
+		for i := range newMeans {
+			for j := range newMeans[i] {
+				newMeans[i][j] = 0
+			}
+		}
 		for i := range samples {
 			var x = samples[i].Attributes
 			var label = int(samples[i].Label)
-			var mean = means[label]
-			if count[label] == 0 {
-				for j := range mean {
-					mean[j] = 0
-				}
-			}
+			var mean = newMeans[label]
 			count[label]++
 			for j := range mean {
 				mean[j] += x[j]
 			}
 		}
+		for i := range newMeans {
+			if c := count[i]; c > 0 {
+				if c > 1 {
+					for j := range newMeans[i] {
+						newMeans[i][j] /= T(count[i])
+					}
+				}
+			} else {
+				copy(newMeans[i], means[i])
+			}
+		}
+		var stop = true
 		for i := range means {
-			if count[i] > 1 {
-				for j := range means[i] {
-					means[i][j] /= T(count[i])
+			for j, v := range means[i] {
+				if mathutil.Abs(v-newMeans[i][j]) > options.StopError {
+					stop = false
+					break
 				}
 			}
+			if !stop {
+				break
+			}
+		}
+		means, newMeans = newMeans, means
+		if stop {
+			break
 		}
 	}
 	return means
@@ -104,7 +138,7 @@ func AutoClustering[T constraints.Float](
 	for i := range samples {
 		x := samples[i].Attributes
 		for j := range x {
-			v := int(math.Ceil(float64(x[j]-min[j]) / radius))
+			v := int(math.Ceil(float64((x[j] - min[j]) / radius)))
 			if v < 0 {
 				v = 0
 			} else if v >= shape.At(j) {
@@ -113,7 +147,7 @@ func AutoClustering[T constraints.Float](
 			indices[j] = v
 		}
 		var offset = tensor.OffsetOf(shape, indices)
-		if boxes[offset].items {
+		if boxes[offset].items == nil {
 			boxes[offset].items = make(map[int]bool)
 		}
 		boxes[offset].items[i] = true
@@ -121,6 +155,8 @@ func AutoClustering[T constraints.Float](
 	}
 
 	for i := range boxes {
+		// TODO: lookup local maxinum density
+		_ = i
 	}
 
 	return nil

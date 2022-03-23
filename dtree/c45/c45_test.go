@@ -3,8 +3,8 @@ package c45_test
 import (
 	"testing"
 
-	"github.com/gopherd/brain/dtree"
-	"github.com/gopherd/brain/dtree/c45"
+	"github.com/gopherd/ml/dtree"
+	"github.com/gopherd/ml/dtree/c45"
 )
 
 func TestModel(t *testing.T) {

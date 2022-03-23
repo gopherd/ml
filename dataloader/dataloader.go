@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/gopherd/brain/model"
+	"github.com/gopherd/ml/model"
 	"github.com/gopherd/doge/constraints"
 	"github.com/gopherd/doge/math/mathutil"
 	"github.com/gopherd/doge/math/tensor"

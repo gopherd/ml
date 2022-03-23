@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gopherd/brain/dataloader"
+	"github.com/gopherd/ml/dataloader"
 	"github.com/gopherd/doge/constraints"
 	"github.com/gopherd/doge/container/slices"
 )

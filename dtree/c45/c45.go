@@ -6,7 +6,7 @@
 package c45
 
 import (
-	"github.com/gopherd/brain/model"
+	"github.com/gopherd/ml/model"
 	"github.com/gopherd/doge/constraints"
 )
 

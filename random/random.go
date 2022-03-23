@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"sort"
 
-	"github.com/gopherd/brain/model"
+	"github.com/gopherd/ml/model"
 	"github.com/gopherd/doge/constraints"
 	"github.com/gopherd/doge/container/slices"
 	"github.com/gopherd/doge/math/tensor"

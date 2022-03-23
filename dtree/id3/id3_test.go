@@ -3,8 +3,8 @@ package id3_test
 import (
 	"testing"
 
-	"github.com/gopherd/brain/dtree"
-	"github.com/gopherd/brain/dtree/id3"
+	"github.com/gopherd/ml/dtree"
+	"github.com/gopherd/ml/dtree/id3"
 )
 
 func TestModel(t *testing.T) {

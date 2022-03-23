@@ -4,8 +4,8 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/gopherd/brain/kmean"
-	"github.com/gopherd/brain/model"
+	"github.com/gopherd/ml/kmean"
+	"github.com/gopherd/ml/model"
 	"github.com/gopherd/doge/math/tensor"
 )
 

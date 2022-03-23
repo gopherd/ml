@@ -5,7 +5,7 @@ package svm
 import (
 	"math/rand"
 
-	"github.com/gopherd/brain/model"
+	"github.com/gopherd/ml/model"
 	"github.com/gopherd/doge/constraints"
 	"github.com/gopherd/doge/container/pair"
 	"github.com/gopherd/doge/math/mathutil"

@@ -1,4 +1,4 @@
-module github.com/gopherd/brain
+module github.com/gopherd/ml
 
 go 1.18
 
