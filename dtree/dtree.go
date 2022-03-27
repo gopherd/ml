@@ -3,13 +3,13 @@ package dtree
 import (
 	"fmt"
 
-	"github.com/gopherd/ml/model"
 	"github.com/gopherd/doge/constraints"
 	"github.com/gopherd/doge/container/maps"
 	"github.com/gopherd/doge/container/ordered"
 	"github.com/gopherd/doge/container/slices"
 	"github.com/gopherd/doge/container/tree"
 	"github.com/gopherd/doge/math/tensor"
+	"github.com/gopherd/ml/model"
 )
 
 // Node represents a node of decision tree
@@ -27,7 +27,7 @@ func (node *Node[T]) String() string {
 	if node.parent == nil {
 		return "."
 	}
-	return fmt.Sprintf("attr(%d)=%v:(%v)", node.AttributeType, node.AttributeValue, node.Label)
+	return fmt.Sprintf("attr[%d=%v]:%v", node.AttributeType, node.AttributeValue, node.Label)
 }
 
 // SetParent sets parent node

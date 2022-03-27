@@ -1,12 +1,12 @@
-package kmean_test
+package kmeans_test
 
 import (
 	"math/rand"
 	"testing"
 
-	"github.com/gopherd/ml/kmean"
-	"github.com/gopherd/ml/model"
 	"github.com/gopherd/doge/math/tensor"
+	"github.com/gopherd/ml/kmeans"
+	"github.com/gopherd/ml/model"
 )
 
 func TestKMean(t *testing.T) {
@@ -19,6 +19,6 @@ func TestKMean(t *testing.T) {
 		x := label*interval + (rand.Float64()*0.5-0.25)*interval
 		samples[i].Attributes = tensor.Vec(x)
 	}
-	var means = kmean.Clustering(samples, k)
+	var means = kmeans.Clustering(samples, k)
 	t.Logf("means: %v", means)
 }

@@ -1,4 +1,4 @@
-package kmean
+package kmeans
 
 import (
 	"math"

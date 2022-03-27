@@ -18,7 +18,7 @@ type Sample[T constraints.Float] struct {
 }
 
 type Model[T constraints.Float] interface {
-	Train(samples []Sample[T])
+	Train(samples []Sample[T], tracker *Tracker)
 	Predict(x tensor.Vector[T]) T
 }
 

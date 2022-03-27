@@ -5,12 +5,13 @@ package svm
 import (
 	"math/rand"
 
-	"github.com/gopherd/ml/model"
 	"github.com/gopherd/doge/constraints"
 	"github.com/gopherd/doge/container/pair"
 	"github.com/gopherd/doge/math/mathutil"
 	"github.com/gopherd/doge/math/tensor"
 	"github.com/gopherd/doge/operator"
+	"github.com/gopherd/ml/canvas2d"
+	"github.com/gopherd/ml/model"
 )
 
 // linear classifier: f(x) = Σᵢ(aᵢ‧k(x,xᵢ)) + b
@@ -21,30 +22,80 @@ type Classifier[T constraints.Float] struct {
 	b T
 	k Kernel[T]
 	c T
+
+	min, max tensor.Vector[T]
 }
 
-func NewClassifier[T constraints.Float](kernel Kernel[T]) *Classifier[T] {
+func NewClassifier[T constraints.Float](c T, kernel Kernel[T]) *Classifier[T] {
 	return &Classifier[T]{
-		k: operator.If(kernel == nil, dotv[T], kernel),
+		k: kernel,
+		c: c,
 	}
 }
 
-func (c *Classifier[T]) Train(samples []model.Sample[T]) {
-	c.smo(samples)
+func (c *Classifier[T]) kernel(x, y tensor.Vector[T]) T {
+	if c.k == nil {
+		return x.Dot(y)
+	}
+	return c.k(x, y)
 }
 
-// implements SMO algorithm
-func (c *Classifier[T]) smo(samples []model.Sample[T]) {
-	// initialize
+func (c *Classifier[T]) Snapshot() *canvas2d.Image {
+	if c.k != nil || len(c.s) == 0 || c.s[0].Attributes.Dim() != 2 {
+		return nil
+	}
+	canvas := canvas2d.NewCanvas(model.NewTransformer(canvas2d.Size, c.min, c.max))
+	// draw scatter
+	canvas.DrawScatter(
+		canvas2d.Attributes(c.s, 0),
+		canvas2d.Attributes(c.s, 1),
+		canvas2d.Classes(c.s),
+		nil,
+	)
+	if len(c.a) > 0 {
+		// draw line: ax + by + c = 0
+		var a, b T
+		for i := range c.a {
+			a += c.a[i] * c.s[i].Attributes[0]
+			b += c.a[i] * c.s[i].Attributes[1]
+		}
+		x0, y0, x1, y1, ok := canvas2d.ClipSegment(a, b, c.b, c.min[0], c.max[0], c.min[1], c.max[1])
+		if ok {
+			canvas.DrawSegment(canvas2d.Values(x0, x1), canvas2d.Values(y0, y1), nil)
+		}
+	}
+	img, err := canvas.Flush()
+	if err != nil {
+		return nil
+	}
+	return img
+}
+
+func (c *Classifier[T]) Train(samples []model.Sample[T], tracker model.Tracker) {
+	c.min, c.max = model.Minmax(samples)
 	c.s = samples
 	c.a = make([]T, len(c.s))
 	for i := range c.a {
 		c.a[i] = T(rand.Float64()) * c.c
 	}
-	var supports = tensor.RangeN[int](len(c.a))
-	c.updateBias(supports)
 
-	for {
+	if tracker != nil {
+		tracker.Snapshot(c.Snapshot())
+	}
+
+	c.smo(samples, tracker)
+
+	if tracker != nil {
+		tracker.Snapshot(c.Snapshot())
+	}
+}
+
+// implements SMO algorithm
+func (c *Classifier[T]) smo(samples []model.Sample[T], tracker model.Tracker) {
+	const maxIdle = 16
+	var idle int
+	for idle < maxIdle {
+		idle++
 		// step1: select index pair (pi, pj)
 		pi, pj := c.selectAlpha()
 		if pi.First < 0 {
@@ -55,17 +106,43 @@ func (c *Classifier[T]) smo(samples []model.Sample[T]) {
 		// step2: update a[i], a[j]
 		ai, aj := c.a[i], c.a[j]
 		xi, xj := c.s[i].Attributes, c.s[j].Attributes
-		yi, yj := c.s[i].Label, c.s[j].Label
+		yi, yj := sign(c.s[i].Label), sign(c.s[j].Label)
 		ei, ej := mathutil.Abs(yi-pi.Second), mathutil.Abs(yj-pj.Second)
-		kii, kjj, kij := c.k(xi, xi), c.k(xj, xj), c.k(xi, xj)
-		ksum := kii + kjj - 2*kij
-		u := operator.If(yi*yj < 0, mathutil.Max(0, aj-ai), mathutil.Max(0, ai+aj-c.c))
-		v := operator.If(yi*yj < 0, mathutil.Min(c.c, aj-ai+c.c), mathutil.Min(c.c, ai+aj))
-		c.a[j] = mathutil.Clamp(c.a[j]+yj*(ei-ej)/ksum, u, v)
+		kii, kjj, kij := c.kernel(xi, xi), c.kernel(xj, xj), c.kernel(xi, xj)
+		eta := kii + kjj - 2*kij
+		c.a[j] = c.a[j] + yj*(ei-ej)/eta
+		if c.c > 0 {
+			u := operator.If(yi*yj < 0, mathutil.Max(0, aj-ai), mathutil.Max(0, ai+aj-c.c))
+			v := operator.If(yi*yj < 0, mathutil.Min(c.c, aj-ai+c.c), mathutil.Min(c.c, ai+aj))
+			c.a[j] = mathutil.Clamp(c.a[j], u, v)
+		}
 		c.a[i] += yi * yj * (aj - c.a[j])
+		if mathutil.Abs(c.a[i]-ai) < model.Epsilon && mathutil.Abs(c.a[j]-aj) < model.Epsilon {
+			continue
+		}
 
 		// step3: update bias
-		c.updateBias(supports)
+		var n int
+		var b T
+		var bi = -ei + ai*yi*kii + aj*yj*kij + c.b
+		var bj = -ej - (c.a[i]-ai)*yi*kij - (c.a[j]-aj)*yj*kjj + c.b
+		if c.a[i] > model.Epsilon && c.a[i] < c.c-model.Epsilon {
+			n++
+			b += bi
+		}
+		if c.a[j] > model.Epsilon && c.a[j] < c.c-model.Epsilon {
+			n++
+			b += bj
+		}
+		if n == 0 {
+			n = 2
+			b = bi + bj
+		}
+		c.b = b / T(n)
+		idle = 0
+		if tracker != nil {
+			tracker.Snapshot(c.Snapshot())
+		}
 	}
 
 	// remove zeros from a and save relative samples(support vectors)
@@ -75,7 +152,6 @@ func (c *Classifier[T]) smo(samples []model.Sample[T]) {
 			n++
 		}
 	}
-	c.s = make([]model.Sample[T], n)
 	n = 0
 	for i := range c.a {
 		if c.a[i] > 0 {
@@ -86,67 +162,55 @@ func (c *Classifier[T]) smo(samples []model.Sample[T]) {
 	}
 	c.a = c.a[:n]
 	c.s = c.s[:n]
+
+	c.updateBias()
 }
 
 func (c *Classifier[T]) selectAlpha() (max, far pair.Pair[int, T]) {
-	var maxDiff T
-	for i := range c.a {
-		var diff T
-		var y = c.Predict(c.s[i].Attributes)
-		if c.a[i] == 0 {
-			if y < 1 {
-				diff = 1 - y
-			}
-		} else if c.a[i] == c.c {
-			if y > 1 {
-				diff = y - 1
-			}
-		} else {
-			if y != 1 {
-				diff = mathutil.Abs(y - 1)
-			}
-		}
-		if i == 0 || diff > maxDiff {
-			max.First = i
-			max.Second = y
-			maxDiff = diff
-		}
-	}
-	if max.Second == 0 {
+	if len(c.a) < 2 {
 		max.First = -1
 		return
 	}
-	var farDiff T
+	max.First = rand.Intn(len(c.a))
+	max.Second = c.Predict(c.s[max.First].Attributes)
+	var farDist T
+	far.First = -1
 	for i := range c.a {
-		var y = c.Predict(c.s[i].Attributes)
-		var diff = mathutil.Abs(y - max.Second)
-		if i == 0 || diff > farDiff {
+		if i == max.First {
+			continue
+		}
+		var dist T
+		for j, x := range c.s[i].Attributes {
+			dx := c.s[max.First].Attributes[j] - x
+			dist += dx * dx
+		}
+		if far.First < 0 || dist > farDist {
 			far.First = i
-			far.Second = y
-			farDiff = diff
+			farDist = dist
 		}
 	}
+	far.Second = c.Predict(c.s[far.First].Attributes)
 	return max, far
 }
 
-func (c *Classifier[T]) updateBias(supports []int) {
-	if len(supports) == 0 {
+func (c *Classifier[T]) updateBias() {
+	if len(c.s) == 0 {
 		return
 	}
 	var sum T
-	for _, i := range supports {
-		sum += c.s[i].Label
-		for _, j := range supports {
-			sum -= c.a[j] * c.s[j].Label * c.k(c.s[i].Attributes, c.s[j].Attributes)
+	for i := range c.s {
+		sum += sign(c.s[i].Label)
+		for j := range c.s {
+			sum -= c.a[j] * sign(c.s[j].Label) * c.kernel(c.s[i].Attributes, c.s[j].Attributes)
 		}
 	}
-	c.b = sum / T(len(supports))
+	c.b = sum / T(len(c.s))
 }
 
 func (c *Classifier[T]) Predict(x tensor.Vector[T]) T {
 	var sum = c.b
 	for i := range c.a {
-		sum += c.a[i] * c.k(x, c.s[i].Attributes)
+		sum += c.a[i] * c.kernel(x, c.s[i].Attributes)
 	}
 	return sign(sum)
 }
