@@ -5,11 +5,8 @@
 package kuhn
 
 import (
-	"bytes"
-	"fmt"
 	"math/rand"
 	"strconv"
-	"strings"
 
 	"github.com/gopherd/doge/constraints"
 	"github.com/gopherd/doge/container/slices"
@@ -88,23 +85,6 @@ func NewKuhnPoker[T constraints.Float](iterations int) *KuhnPoker[T] {
 	}
 }
 
-func (k *KuhnPoker[T]) String() string {
-	var buf bytes.Buffer
-	var n int
-	buf.WriteString("{nodes=map[")
-	for k, v := range k.nodes {
-		if n > 0 {
-			buf.WriteByte(' ')
-		}
-		fmt.Fprint(&buf, k)
-		buf.WriteByte(':')
-		fmt.Fprint(&buf, v)
-		n++
-	}
-	buf.WriteString("}")
-	return buf.String()
-}
-
 func (k *KuhnPoker[T]) Train() T {
 	var cards = []int{1, 2, 3}
 	var util T
@@ -123,12 +103,11 @@ func (k *KuhnPoker[T]) cfr(cards []int, h string, p0, p1 T) T {
 
 	// compute Counterfactual Regret value for terminal state
 	if plays > 1 {
-		if h[plays-1] == h[plays-2] {
-			// cases: bb,pbb,pp
-			var payoff = operator.If(h[plays-1] == 'p', T(1.0), T(2.0))
+		var passed = h[plays-1] == 'p'
+		if h[plays-1] == h[plays-2] { // cases: bb,pbb,pp
+			var payoff = operator.If(passed, T(1), T(2))
 			return operator.If(cards[player] < cards[opponent], -payoff, payoff)
-		} else if strings.HasSuffix(h, "p") {
-			// cases: pbp,bp
+		} else if passed { // cases: pbp,bp
 			return 1
 		}
 	}
