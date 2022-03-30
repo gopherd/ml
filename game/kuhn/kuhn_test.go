@@ -3,7 +3,7 @@ package kuhn_test
 import (
 	"testing"
 
-	"github.com/gopherd/ml/cfr/kuhn"
+	"github.com/gopherd/ml/game/kuhn"
 )
 
 func TestKuhnTrain(t *testing.T) {
